@@ -48,6 +48,6 @@ export const clearUserDataCache = () => {
   // No-op since we removed caching
 };
 
-export const updateUserDataCache = (newData: Partial<UserData>) => {
+export const updateUserDataCache = () => {
   // No-op since we removed caching
 }; 

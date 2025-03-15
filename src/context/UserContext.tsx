@@ -3,6 +3,8 @@ import { auth } from "@/app/firebase";
 import { getUserData, UserData } from "@/utils/userData";
 import { EventService } from "@/application/services/EventService";
 import { FirebaseEventRepository } from "@/infrastructure/repositories/FirebaseEventRepository";
+import { UserService } from "@/application/services/UserService";
+import { FirebaseUserRepository } from "@/infrastructure/repositories/FirebaseUserRepository";
 import { Event } from "@/domain/models/Event";
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from "@/app/firebase";
@@ -17,7 +19,8 @@ interface UserContextType {
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
-const eventService = new EventService(new FirebaseEventRepository());
+const userService = new UserService(new FirebaseUserRepository());
+const eventService = new EventService(new FirebaseEventRepository(), userService);
 
 export function UserProvider({ children }: { children: ReactNode }) {
   const [userData, setUserData] = useState<UserData | null>(null);

@@ -4,6 +4,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { loginUser, registerUser } from "@/services/authService";
 import "@/styles/animations.css";
+import { useAuthStore } from "@/app/store";
+import { UserService } from "@/application/services/UserService";
+import { FirebaseUserRepository } from "@/infrastructure/repositories/FirebaseUserRepository";
+
+const userService = new UserService(new FirebaseUserRepository());
 
 export default function Login() {
   const [isSignup, setIsSignup] = useState(false);
@@ -12,6 +17,7 @@ export default function Login() {
   const [username, setUsername] = useState(""); // Only for sign-up
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const setAuth = useAuthStore((state) => state.setAuth);
 
   const toggleForm = () => {
     setIsSignup(!isSignup);
@@ -25,9 +31,13 @@ export default function Login() {
           setError("Username is required");
           return;
         }
-        await registerUser(email, password, username);
+        const userCredential = await registerUser(email, password, username);
+        const userData = await userService.getUserData(userCredential.user.uid);
+        setAuth(true, userData);
       } else {
-        await loginUser(email, password);
+        const userCredential = await loginUser(email, password);
+        const userData = await userService.getUserData(userCredential.user.uid);
+        setAuth(true, userData);
       }
       navigate("/dashboard"); // Redirect to dashboard after successful auth
     } catch (error: unknown) {
@@ -40,6 +50,7 @@ export default function Login() {
       } else {
         setError("An unknown error occurred");
       }
+      setAuth(false, null);
     }
   };
 

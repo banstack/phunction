@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
-import { CalendarIcon, ImageIcon, X, ArrowLeft, Check } from "lucide-react";
+import { ImageIcon, X, ArrowLeft, Check } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -40,13 +40,15 @@ const formSchema = z.object({
   image: z.any().optional(),
 });
 
+type FormValues = z.infer<typeof formSchema>;
+
 export default function CreateEvent() {
   const navigate = useNavigate();
-  const [imagePreview, setImagePreview] = useState(null);
-  const [error, setError] = useState(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const form = useForm({
+  const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       eventName: "",
@@ -59,7 +61,7 @@ export default function CreateEvent() {
     },
   });
 
-  async function onSubmit(values) {
+  async function onSubmit(values: FormValues) {
     try {
       setIsSubmitting(true);
       setError(null);
@@ -68,21 +70,30 @@ export default function CreateEvent() {
       const eventDateTime = new Date(dateTime);
       const formattedTime = format(eventDateTime, 'HH:mm');
       
+      // Get current user data
+      const currentUser = await eventService.getCurrentUserData();
+      
       await eventService.createEvent({
         ...eventData,
         date: eventDateTime,
         time: formattedTime,
+        creatorUsername: currentUser.username,
+        creatorProfilePicture: currentUser.profilePicture,
       }, image);
       
       navigate("/dashboard");
     } catch (err) {
-      setError(err.message || "Failed to create event. Please try again.");
+      if (err instanceof Error) {
+        setError(err.message || "Failed to create event. Please try again.");
+      } else {
+        setError("Failed to create event. Please try again.");
+      }
     } finally {
       setIsSubmitting(false);
     }
   }
 
-  const handleImageRemove = (e) => {
+  const handleImageRemove = (e: React.MouseEvent) => {
     e.stopPropagation();
     form.setValue("image", null);
     setImagePreview(null);
@@ -90,7 +101,7 @@ export default function CreateEvent() {
 
   useEffect(() => {
     const image = form.watch("image");
-    if (image) {
+    if (image instanceof File) {
       const objectUrl = URL.createObjectURL(image);
       setImagePreview(objectUrl);
       return () => URL.revokeObjectURL(objectUrl);
@@ -259,46 +270,56 @@ export default function CreateEvent() {
                   <FormField
                     control={form.control}
                     name="image"
-                    render={({ field }) => (
+                    render={({ field: { onChange, ...field } }) => (
                       <FormItem>
                         <FormLabel className="text-white text-lg">Event Image</FormLabel>
                         <FormControl>
-                          <div className="border-2 border-dashed border-gray-600 rounded-lg h-[200px] w-full flex flex-col items-center justify-center relative hover:border-gray-500 transition-colors overflow-hidden group">
-                            <Input 
-                              type="file" 
+                          <div
+                            className={cn(
+                              "border-2 border-dashed rounded-lg p-4 hover:border-gray-400 transition-colors cursor-pointer",
+                              "border-gray-700 bg-gray-800/50",
+                              "flex flex-col items-center justify-center gap-2",
+                              "min-h-[200px] relative"
+                            )}
+                            onClick={() => document.getElementById("image-upload")?.click()}
+                          >
+                            <input
+                              id="image-upload"
+                              type="file"
+                              className="hidden"
                               accept="image/*"
-                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                               onChange={(e) => {
                                 const file = e.target.files?.[0];
                                 if (file) {
-                                  field.onChange(file);
+                                  onChange(file);
                                 }
                               }}
+                              {...field}
                             />
+                            
                             {imagePreview ? (
                               <>
-                                <img 
-                                  src={imagePreview} 
-                                  alt="Preview" 
-                                  className="absolute inset-0 w-full h-full object-cover"
+                                <img
+                                  src={imagePreview}
+                                  alt="Event preview"
+                                  className="w-full h-full object-cover rounded-lg"
                                 />
-                                <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="icon"
-                                    className="bg-white hover:bg-gray-100"
-                                    onClick={handleImageRemove}
-                                  >
-                                    <X className="h-4 w-4" />
-                                  </Button>
-                                </div>
+                                <button
+                                  type="button"
+                                  onClick={handleImageRemove}
+                                  className="absolute top-2 right-2 p-1 bg-red-500 rounded-full hover:bg-red-600 transition-colors"
+                                >
+                                  <X className="h-4 w-4 text-white" />
+                                </button>
                               </>
                             ) : (
                               <>
-                                <ImageIcon className="h-12 w-12 text-gray-400 mb-4" />
-                                <p className="text-gray-300 text-lg mb-2">Click to upload image</p>
-                                <p className="text-gray-500">SVG, PNG, JPG or GIF</p>
+                                <ImageIcon className="h-8 w-8 text-gray-400" />
+                                <p className="text-gray-400 text-center">
+                                  Click to upload an image
+                                  <br />
+                                  <span className="text-sm">PNG, JPG up to 5MB</span>
+                                </p>
                               </>
                             )}
                           </div>
@@ -310,20 +331,21 @@ export default function CreateEvent() {
                 </div>
               </div>
 
-              {/* Submit Button */}
-              <div className="pt-6 border-t border-gray-800">
+              <div className="flex justify-end">
                 <Button
                   type="submit"
+                  className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-6 text-lg font-medium"
                   disabled={isSubmitting}
-                  className="w-full bg-purple-600 hover:bg-purple-700 h-12 text-lg"
                 >
                   {isSubmitting ? (
-                    "Creating Event..."
+                    <span className="flex items-center gap-2">
+                      Creating...
+                    </span>
                   ) : (
-                    <>
+                    <span className="flex items-center gap-2">
                       Create Event
-                      <Check className="ml-2 h-5 w-5" />
-                    </>
+                      <Check className="h-5 w-5" />
+                    </span>
                   )}
                 </Button>
               </div>
@@ -333,4 +355,4 @@ export default function CreateEvent() {
       </div>
     </div>
   );
-}
+} 
